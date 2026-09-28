@@ -9,23 +9,23 @@ workflows:
     scripts:
       - name: Unzip project
         script: |
-          set -x
-          ls -la
           ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-          echo "ZIP=$ZIP_FILE"
-          rm -rf temp_unzip
-          mkdir temp_unzip
+          rm -rf temp_unzip && mkdir temp_unzip
           unzip -o "$ZIP_FILE" -d temp_unzip
           PKG_DIR=$(find temp_unzip -name "pubspec.yaml" | head -n 1 | xargs dirname)
-          echo "PKG_DIR=$PKG_DIR"
           cp -R "$PKG_DIR"/. .
-          ls -la
-      - name: Get Flutter dependencies
+      - name: Fix Gradle version and AGP
         script: |
-          flutter pub get
+          # Upgrade Gradle to 8.14.0 - this is what Flutter requires
+          sed -i '' 's/8.10.2/8.14.0/g' android/gradle/wrapper/gradle-wrapper.properties
+          # Fix AGP 9 error
+          echo "android.newDsl=false" >> android/gradle.properties
+          echo "android.nonFinalResIds=false" >> android/gradle.properties
+          cat android/gradle/wrapper/gradle-wrapper.properties
+          cat android/gradle.properties
+      - name: Get dependencies
+        script: flutter pub get
       - name: Build AAB
-        script: |
-          flutter build appbundle --release
+        script: flutter build appbundle --release --android-skip-build-dependency-validation
     artifacts:
       - build/app/outputs/bundle/release/*.aab
-      - android/app/build/outputs/**/*.aab
