@@ -4,21 +4,25 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
-      node: 20.18.1
+      node: 22.13.0
       java: 17
     scripts:
       - name: Unzip project
         script: |
-          ZIP=$(ls *.zip 2>/dev/null | head -n 1)
-          if [ -f "$ZIP" ]; then
-            unzip -o "$ZIP"
-            for d in */; do
-              if [ -f "${d}package.json" ]; then
-                cp -r ${d}* .
-                break
-              fi
-            done
+          ls -la
+          find . -maxdepth 1 -name "*.zip*" -type f
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip*" -type f | head -n 1)
+          if [ -f "$ZIP_FILE" ]; then
+            echo "Unzipping $ZIP_FILE"
+            unzip -o "$ZIP_FILE" -d ./temp_unzip
+            PKG=$(find ./temp_unzip -name "package.json" | head -n 1)
+            if [ -f "$PKG" ]; then
+              PKG_DIR=$(dirname "$PKG")
+              cp -r $PKG_DIR/* .
+              cp -r $PKG_DIR/.* . 2>/dev/null || true
+            fi
           fi
+          ls -la
       - name: Install
         script: npm install
       - name: Prebuild
