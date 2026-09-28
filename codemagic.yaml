@@ -9,20 +9,31 @@ workflows:
     scripts:
       - name: Unzip project
         script: |
+          set -x
           ls -la
-          find . -maxdepth 1 -name "*.zip*" -type f
-          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip*" -type f | head -n 1)
-          if [ -f "$ZIP_FILE" ]; then
-            echo "Unzipping $ZIP_FILE"
-            unzip -o "$ZIP_FILE" -d ./temp_unzip
-            PKG=$(find ./temp_unzip -name "package.json" | head -n 1)
-            if [ -f "$PKG" ]; then
+          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+          echo "ZIP_FILE=$ZIP_FILE"
+          if [ -z "$ZIP_FILE" ]; then
+            echo "NO ZIP FOUND! Checking for ph_task*"
+            ls -la *.zip* 2>&1 || true
+            find . -type f | head -n 30
+          else
+            rm -rf temp_unzip
+            mkdir temp_unzip
+            unzip -o "$ZIP_FILE" -d temp_unzip
+            echo "=== after unzip ==="
+            ls -la temp_unzip
+            find temp_unzip -name "package.json" | head -n 5
+            PKG=$(find temp_unzip -name "package.json" | head -n 1)
+            echo "PKG=$PKG"
+            if [ -n "$PKG" ]; then
               PKG_DIR=$(dirname "$PKG")
-              cp -r $PKG_DIR/* .
-              cp -r $PKG_DIR/.* . 2>/dev/null || true
+              echo "Copying from $PKG_DIR to ."
+              cp -R "$PKG_DIR"/. .
+              ls -la
+              ls -la package.json
             fi
           fi
-          ls -la
       - name: Install
         script: npm install
       - name: Prebuild
