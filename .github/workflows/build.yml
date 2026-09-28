@@ -5,40 +5,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup project from zip
+
+      - name: Extract zip if present
         run: |
-          ZIP_FILE=$(find. -name "*.zip" | head -n 1)
-          unzip -o "$ZIP_FILE" -d./unzipped
-          PROJECT_DIR=$(find./unzipped -name "pubspec.yaml" | head -n 1 | xargs dirname)
-          rsync -av $PROJECT_DIR/./ --exclude '.git'
           ls -la
+          ZIP=$(ls *.zip 2>/dev/null | head -n1)
+          if [ -f "$ZIP" ]; then
+            echo "Unzipping $ZIP"
+            unzip -o "$ZIP" -d temp
+            PROJ=$(find temp -name pubspec.yaml -exec dirname {} \; | head -n1)
+            echo "Found project at $PROJ"
+            cp -rf $PROJ/*.
+            cp -rf $PROJ/.*. 2>/dev/null || true
+            rm -rf temp
+          fi
+          ls -la
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.32.0'
           channel: 'stable'
-      - name: Fix keystore & configs
+
+      - name: Fix keystore
         run: |
           rm -f android/app/mykey.jks
           rm -f android/key.properties
-          echo "android.newDsl=false" >> android/gradle.properties
-          echo "android.nonFinalResIds=false" >> android/gradle.properties
-          keytool -genkey -v -keystore android/app/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=Amambo TaskHub, OU=Dev, O=Amambo, L=Warri, S=Delta, C=NG" -alias upload
+          keytool -genkey -v -keystore android/app/upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=Amambo, OU=Dev, O=Amambo, L=Warri, S=Delta, C=NG" -alias upload
           echo "storeFile=upload-keystore.jks" > android/key.properties
           echo "storePassword=123456" >> android/key.properties
           echo "keyAlias=upload" >> android/key.properties
           echo "keyPassword=123456" >> android/key.properties
-          sed -i 's/mykey.jks/upload-keystore.jks/g' android/app/build.gradle.kts || true
-          sed -i 's/mykey.jks/upload-keystore.jks/g' android/app/build.gradle || true
-          sed -i 's/compileSdk = 35/compileSdk = 36/g' android/app/build.gradle.kts || true
-          sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
-          sed -i 's/8.7.0/8.9.1/g' android/build.gradle.kts || true
-          sed -i 's/8.7.0/8.9.1/g' android/settings.gradle.kts || true
+          echo "android.newDsl=false" >> android/gradle.properties
+          echo "android.nonFinalResIds=false" >> android/gradle.properties
+
       - run: flutter pub get
       - run: flutter build appbundle --release --android-skip-build-dependency-validation
+
       - uses: actions/upload-artifact@v4
         with:
           name: app-release-aab
