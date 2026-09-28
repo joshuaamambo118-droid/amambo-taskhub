@@ -4,7 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
-      node: 22.13.0
+      flutter: stable
       java: 17
     scripts:
       - name: Unzip project
@@ -12,36 +12,20 @@ workflows:
           set -x
           ls -la
           ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-          echo "ZIP_FILE=$ZIP_FILE"
-          if [ -z "$ZIP_FILE" ]; then
-            echo "NO ZIP FOUND! Checking for ph_task*"
-            ls -la *.zip* 2>&1 || true
-            find . -type f | head -n 30
-          else
-            rm -rf temp_unzip
-            mkdir temp_unzip
-            unzip -o "$ZIP_FILE" -d temp_unzip
-            echo "=== after unzip ==="
-            ls -la temp_unzip
-            find temp_unzip -name "package.json" | head -n 5
-            PKG=$(find temp_unzip -name "package.json" | head -n 1)
-            echo "PKG=$PKG"
-            if [ -n "$PKG" ]; then
-              PKG_DIR=$(dirname "$PKG")
-              echo "Copying from $PKG_DIR to ."
-              cp -R "$PKG_DIR"/. .
-              ls -la
-              ls -la package.json
-            fi
-          fi
-      - name: Install
-        script: npm install
-      - name: Prebuild
-        script: npx expo prebuild --clean --platform android
+          echo "ZIP=$ZIP_FILE"
+          rm -rf temp_unzip
+          mkdir temp_unzip
+          unzip -o "$ZIP_FILE" -d temp_unzip
+          PKG_DIR=$(find temp_unzip -name "pubspec.yaml" | head -n 1 | xargs dirname)
+          echo "PKG_DIR=$PKG_DIR"
+          cp -R "$PKG_DIR"/. .
+          ls -la
+      - name: Get Flutter dependencies
+        script: |
+          flutter pub get
       - name: Build AAB
         script: |
-          cd android
-          chmod +x gradlew
-          ./gradlew bundleRelease
+          flutter build appbundle --release
     artifacts:
+      - build/app/outputs/bundle/release/*.aab
       - android/app/build/outputs/**/*.aab
