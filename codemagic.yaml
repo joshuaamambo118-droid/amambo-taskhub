@@ -1,0 +1,32 @@
+workflows:
+  android-build:
+    name: Android AAB Build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 20.18.1
+      java: 17
+    scripts:
+      - name: Unzip project
+        script: |
+          ZIP=$(ls *.zip 2>/dev/null | head -n 1)
+          if [ -f "$ZIP" ]; then
+            unzip -o "$ZIP"
+            for d in */; do
+              if [ -f "${d}package.json" ]; then
+                cp -r ${d}* .
+                break
+              fi
+            done
+          fi
+      - name: Install
+        script: npm install
+      - name: Prebuild
+        script: npx expo prebuild --clean --platform android
+      - name: Build AAB
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/**/*.aab
