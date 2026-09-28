@@ -5,13 +5,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Unzip and setup project
+      - name: Setup project from zip
         run: |
-          ZIP_FILE=$(find. -maxdepth 2 -name "*.zip" | head -n 1)
-          rm -rf temp_unzip && mkdir temp_unzip
-          unzip -o "$ZIP_FILE" -d temp_unzip
-          PKG_DIR=$(find temp_unzip -name "pubspec.yaml" | head -n 1 | xargs dirname)
-          cp -R $PKG_DIR/..
+          ZIP_FILE=$(find. -name "*.zip" | head -n 1)
+          echo "Found $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d./unzipped
+          PROJECT_DIR=$(find./unzipped -name "pubspec.yaml" | head -n 1 | xargs dirname)
+          echo "Project is $PROJECT_DIR"
+          cp -R $PROJECT_DIR/*. || cp -R $PROJECT_DIR/..
           ls -la
       - uses: actions/setup-java@v4
         with:
@@ -19,15 +20,16 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.5'
+          flutter-version: '3.32.0'
           channel: 'stable'
-      - name: Fix SDK
+      - name: Fix configs
         run: |
           echo "android.newDsl=false" >> android/gradle.properties
           echo "android.nonFinalResIds=false" >> android/gradle.properties
           sed -i 's/compileSdk = 35/compileSdk = 36/g' android/app/build.gradle.kts || true
-          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' android/app/build.gradle.kts || true
+          sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
           sed -i 's/8.7.0/8.9.1/g' android/build.gradle.kts || true
+          sed -i 's/8.7.0/8.9.1/g' android/settings.gradle.kts || true
       - run: flutter pub get
       - run: flutter build appbundle --release --android-skip-build-dependency-validation
       - uses: actions/upload-artifact@v4
