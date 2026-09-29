@@ -1,41 +1,45 @@
 workflows:
-  android-build:
-    name: Android AAB Build
-    instance_type: mac_mini_m2
+  android-release:
+    name: Android Release
+    instance_type: mac_mini_m1
     max_build_duration: 60
     environment:
       flutter: stable
-      java: 17
+      xcode: latest
+      cocoapods: default
+      groups:
+        - keystore_credentials
     scripts:
       - name: Unzip project
         script: |
-          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-          rm -rf temp_unzip && mkdir temp_unzip
-          unzip -o "$ZIP_FILE" -d temp_unzip
-          PKG_DIR=$(find temp_unzip -name "pubspec.yaml" | head -n 1 | xargs dirname)
-          cp -R "$PKG_DIR"/. .
-      - name: Fix SDK 36 and AGP
-        script: |
-          echo "Fixing compileSdk to 36 and AGP to 8.9.1..."
-          # Fix app/build.gradle.kts - compileSdk and ndkVersion
-          sed -i '' 's/compileSdk = 35/compileSdk = 36/g' android/app/build.gradle.kts || true
-          sed -i '' 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' android/app/build.gradle.kts || true
-          sed -i '' 's/compileSdkVersion 35/compileSdkVersion 36/g' android/app/build.gradle.kts || true
-          sed -i '' 's/ndkVersion.*/ndkVersion = "28.2.13676358"/g' android/app/build.gradle.kts || true
-          # If ndkVersion not exist, add it
-          if ! grep -q "ndkVersion" android/app/build.gradle.kts; then
-            sed -i '' '/compileSdk = 36/a \
-                  ndkVersion = "28.2.13676358"' android/app/build.gradle.kts || true
+          echo "Unzipping project..."
+          unzip -o ph_task_hub-copy.zip -d .
+          # Move files from subfolder to root
+          if [ -d "ph_task_hub-copy" ]; then
+            cp -r ph_task_hub-copy/* . 2>/dev/null || true
+            cp -r ph_task_hub-copy/.* . 2>/dev/null || true
+            rm -rf ph_task_hub-copy
           fi
-          # Fix AGP version in android/build.gradle.kts or settings.gradle.kts
-          sed -i '' 's/8.7.0/8.9.1/g' android/build.gradle.kts || true
-          sed -i '' 's/8.7.0/8.9.1/g' android/settings.gradle.kts || true
-          # AGP fix
-          echo "android.newDsl=false" >> android/gradle.properties
-          cat android/app/build.gradle.kts | grep -A2 -B2 "compileSdk\|ndkVersion"
-      - name: Get dependencies
-        script: flutter pub get
-      - name: Build AAB
-        script: flutter build appbundle --release --android-skip-build-dependency-validation
+          rm -f ph_task_hub-copy.zip
+          ls -la
+          cat pubspec.yaml
+      - name: Set up keystore
+        script: |
+          echo $CM_KEYSTORE | base64 --decode > /tmp/keystore.jks
+          echo "storeFile=/tmp/keystore.jks" > android/key.properties
+          echo "storePassword=$CM_KEYSTORE_PASSWORD" >> android/key.properties
+          echo "keyAlias=$CM_KEY_ALIAS" >> android/key.properties
+          echo "keyPassword=$CM_KEY_PASSWORD" >> android/key.properties
+      - name: Flutter pub get
+        script: |
+          flutter pub get
+      - name: Build APK
+        script: |
+          flutter build apk --release
     artifacts:
+      - build/app/outputs/flutter-apk/*.apk
       - build/app/outputs/bundle/release/*.aab
+    publishing:
+      email:
+        recipients:
+          - joshuaamambo118@gmail.com
