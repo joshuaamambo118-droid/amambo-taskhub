@@ -23,12 +23,19 @@ workflows:
           ls -la
       - name: Fix Gradle version
         script: |
-          echo "Fixing Gradle version to 8.14.0..."
-          sed -i.bak "s/gradle-.*/gradle-8.14.0-all.zip/" android/gradle/wrapper/gradle-wrapper.properties || true
+          echo "Fixing Gradle version to 8.12..."
+          cat > android/gradle/wrapper/gradle-wrapper.properties <<'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.12-all.zip
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
           cat android/gradle/wrapper/gradle-wrapper.properties
           echo "android.newDsl=false" >> android/gradle.properties
           echo "android.suppressUnsupportedAGP=true" >> android/gradle.properties
-          cat android/gradle.properties
       - name: Set up keystore
         script: |
           echo $CM_KEYSTORE | base64 --decode > /tmp/keystore.jks
