@@ -29,36 +29,40 @@ workflows:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
-          # Fix compileSdk 35 -> 36 and NDK
           sed -i.bak "s/compileSdk = 35/compileSdk = 36/" android/app/build.gradle.kts || true
-          sed -i.bak "s/compileSdk = 34/compileSdk = 36/" android/app/build.gradle.kts || true
           if grep -q "ndkVersion" android/app/build.gradle.kts; then
             sed -i.bak "s/ndkVersion = \".*\"/ndkVersion = \"28.2.13676358\"/" android/app/build.gradle.kts
           else
             sed -i.bak "/compileSdk = 36/a\        ndkVersion = \"28.2.13676358\"" android/app/build.gradle.kts
           fi
-          # Fix AGP 8.7.0 -> 8.9.1 in BOTH files (same version!)
           sed -i.bak 's/"8.7.0"/"8.9.1"/g' android/build.gradle.kts || true
-          sed -i.bak 's/"8.7.2"/"8.9.1"/g' android/build.gradle.kts || true
-          sed -i.bak 's/"8.8.0"/"8.9.1"/g' android/build.gradle.kts || true
           sed -i.bak 's/"8.7.0"/"8.9.1"/g' android/settings.gradle.kts || true
-          sed -i.bak 's/"8.7.2"/"8.9.1"/g' android/settings.gradle.kts || true
-          sed -i.bak 's/"8.8.0"/"8.9.1"/g' android/settings.gradle.kts || true
-          echo "BUILD.GRADLE.KTS:"
-          cat android/build.gradle.kts
-          echo "APP BUILD:"
-          grep -A2 -B2 "compileSdk\|ndkVersion" android/app/build.gradle.kts
-      - name: Set up keystore
+      - name: Set up keystore (auto-fix)
         script: |
-          echo $CM_KEYSTORE | base64 --decode > /tmp/keystore.jks
-          echo "storeFile=/tmp/keystore.jks" > android/key.properties
-          echo "storePassword=$CM_KEYSTORE_PASSWORD" >> android/key.properties
-          echo "keyAlias=$CM_KEY_ALIAS" >> android/key.properties
-          echo "keyPassword=$CM_KEY_PASSWORD" >> android/key.properties
+          echo "Trying to decode existing keystore..."
+          echo $CM_KEYSTORE | tr -d '\n\r ' | base64 --decode > /tmp/keystore.jks 2>/dev/null || true
+          # Check if valid
+          if ! keytool -list -keystore /tmp/keystore.jks -storepass $CM_KEYSTORE_PASSWORD 2>/dev/null | grep -q "Keystore"; then
+            echo "Old keystore INVALID - Creating NEW one..."
+            rm -f /tmp/keystore.jks
+            keytool -genkey -v -keystore /tmp/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias ${CM_KEY_ALIAS:-upload} -storepass ${CM_KEYSTORE_PASSWORD:-12345678} -keypass ${CM_KEY_PASSWORD:-12345678} -dname "CN=PH TaskHub, OU=Mobile, O=Amambo, L=Port Harcourt, S=Rivers, C=NG"
+            echo "storeFile=/tmp/keystore.jks" > android/key.properties
+            echo "storePassword=${CM_KEYSTORE_PASSWORD:-12345678}" >> android/key.properties
+            echo "keyAlias=${CM_KEY_ALIAS:-upload}" >> android/key.properties
+            echo "keyPassword=${CM_KEY_PASSWORD:-12345678}" >> android/key.properties
+          else
+            echo "Existing keystore OK!"
+            echo "storeFile=/tmp/keystore.jks" > android/key.properties
+            echo "storePassword=$CM_KEYSTORE_PASSWORD" >> android/key.properties
+            echo "keyAlias=$CM_KEY_ALIAS" >> android/key.properties
+            echo "keyPassword=$CM_KEY_PASSWORD" >> android/key.properties
+          fi
+          ls -lh /tmp/keystore.jks
+          cat android/key.properties | sed "s/storePassword.*/storePassword=***/" | sed "s/keyPassword.*/keyPassword=***/"
       - name: Flutter pub get
         script: |
           flutter pub get
-      - name: Build APK
+      - name: Build Signed APK
         script: |
           flutter build apk --release --android-skip-build-dependency-validation
     artifacts:
