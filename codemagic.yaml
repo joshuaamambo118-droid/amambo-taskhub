@@ -14,7 +14,6 @@ workflows:
         script: |
           echo "Unzipping project..."
           unzip -o ph_task_hub-copy.zip -d .
-          # Move files from subfolder to root
           if [ -d "ph_task_hub-copy" ]; then
             cp -r ph_task_hub-copy/* . 2>/dev/null || true
             cp -r ph_task_hub-copy/.* . 2>/dev/null || true
@@ -22,7 +21,14 @@ workflows:
           fi
           rm -f ph_task_hub-copy.zip
           ls -la
-          cat pubspec.yaml
+      - name: Fix Gradle version
+        script: |
+          echo "Fixing Gradle version to 8.14.0..."
+          sed -i.bak "s/gradle-.*/gradle-8.14.0-all.zip/" android/gradle/wrapper/gradle-wrapper.properties || true
+          cat android/gradle/wrapper/gradle-wrapper.properties
+          echo "android.newDsl=false" >> android/gradle.properties
+          echo "android.suppressUnsupportedAGP=true" >> android/gradle.properties
+          cat android/gradle.properties
       - name: Set up keystore
         script: |
           echo $CM_KEYSTORE | base64 --decode > /tmp/keystore.jks
@@ -35,7 +41,7 @@ workflows:
           flutter pub get
       - name: Build APK
         script: |
-          flutter build apk --release
+          flutter build apk --release --android-skip-build-dependency-validation
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
       - build/app/outputs/bundle/release/*.aab
